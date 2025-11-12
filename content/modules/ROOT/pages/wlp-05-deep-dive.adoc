@@ -79,9 +79,17 @@ The effect of workload partitioning is clearly visible in the `oc describe node`
 
 Notice that while the `Capacity` shows 24 total CPUs, the `Allocatable` CPU count is only 4. This reflects the 20 cores that were reserved for the system.
 
+. Run the command to describe the node:
++
+[source,bash]
+----
+oc describe node master-01-demo
+----
+
+. Example Output (After Partitioning)
++
 [source,yaml]
 ----
-# oc describe node master-01-demo (After)
 ...
 Capacity:
   cpu:                24
@@ -98,9 +106,17 @@ Allocatable:
 
 Without workload partitioning, the `Allocatable` CPU is much higher (e.g., 23.5).
 
+. Run the command to describe the node:
++
+[source,bash]
+----
+oc describe node master-01-demo
+----
+
+. Example Output (Before Partitioning)
++
 [source,yaml]
 ----
-# oc describe node master-01-demo (Before)
 ...
 Capacity:
   cpu:                24
