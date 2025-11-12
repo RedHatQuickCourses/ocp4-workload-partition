@@ -1,0 +1,76 @@
+= 4. Testing Workload Isolation with a Virtual Machine
+
+Workload partitioning also applies to virtual machines managed by OpenShift Virtualization. Let's create a VM with 4 vCPUs and run the same stress test to verify this.
+
+. *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
++
+image::2025-09-02-23-37-09.png[width=1024]
+
+. *Access the VM and Run Stress Test:*
++
+If you don't have `virtctl` installed, download it first:
++
+[source,bash]
+----
+wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.apps.demo-01-rhsys.wzhlab.top/amd64/linux/virtctl.tar.gz
+tar zvxf virtctl.tar.gz
+mv virtctl ~/.local/bin/
+----
++
+Use `virtctl` to SSH into the VM and execute the `stress-ng` command.
++
+[source,bash]
+----
+virtctl -n demo ssh user@vm-name --identity-file=~/.ssh/id_rsa
+----
++
+Once inside the VM, run the stress test:
++
+[source,bash]
+----
+stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp
+----
+
+. *Observe Host CPU Usage:*
++
+Checking `top` on the host node will again show that the QEMU process for the VM is consuming CPU cycles exclusively from the isolated cores (20-23).
++
+.Example `top` output
+[source,text]
+----
+%Cpu19 :  1.7 us,  2.0 sy,  0.0 ni, 96.4 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu20 : 99.0 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.0 si,  0.0 st
+%Cpu21 : 96.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  1.0 hi,  2.0 si,  0.0 st
+%Cpu22 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  1.0 hi,  0.0 si,  0.0 st
+%Cpu23 : 99.0 us,  0.7 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+----
+
+. *Verifying VM Process CPU Affinity*
++
+Finally, we can confirm the CPU affinity of the VM's QEMU process on the host node.
++
+. Find the PID of the `qemu-kvm` process for the VM:
++
+[source,bash]
+----
+ps -ef | grep qemu-kvm
+----
++
+.Example `ps` output
+[source,text]
+----
+107        44891   44699 62 03:04 ?        00:04:53 /usr/libexec/qemu-kvm -name guest=demo_centos-stream10-tan-tarantula-34,.............
+----
++
+. Check its CPU affinity:
++
+[source,bash]
+----
+taskset -c -p 44891
+----
++
+.Example `taskset` output
+[source,text]
+----
+pid 44891's current affinity list: 20-23
+----

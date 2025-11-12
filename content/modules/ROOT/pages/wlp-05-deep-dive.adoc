@@ -1,0 +1,150 @@
+= 5. Deep Dive and Conclusion
+
+This section explores the mechanics of workload partitioning and summarizes the key takeaways.
+
+== Behind the Scenes: How It Works
+
+The isolation is achieved through a combination of configurations at the Kubelet, CRI-O, and Kernel levels, managed by the Performance Addon Operator.
+
+=== Kubelet Configuration
+
+The `PerformanceProfile` creates a `KubeletConfig` object. The key parameter here is `reservedSystemCPUs`.
+
+. You can inspect the `KubeletConfig` with this command:
++
+[source,bash]
+----
+oc get kubeletconfig performance-openshift-node-performance-profile -o yaml
+----
+
+The `reservedSystemCPUs: 0-19` directive in the output instructs the Kubelet to reserve cores 0-19 for the operating system and Kubernetes system daemons. The Kubelet's CPU Manager will only consider the remaining cores (20-23) as allocatable for pods.
+
+. Snippet from `KubeletConfig`
++
+[source,yaml]
+----
+...
+spec:
+  kubeletConfig:
+    ...
+    cpuManagerPolicy: static
+    reservedSystemCPUs: 0-19
+    topologyManagerPolicy: restricted
+...
+----
+
+=== CRI-O Configuration
+
+Additionally, a CRI-O configuration file is created to pin specific system-level workloads to the reserved cores. This ensures that even containers part of the OpenShift infrastructure are constrained to the reserved set.
+
+. On a master node, you can view this configuration file:
++
+[source,bash]
+----
+cat /etc/crio/crio.conf.d/99-workload-pinning.conf
+----
+
+The content of the file specifies that any pod with the `target.workload.openshift.io/management` annotation should be placed on the `0-19` cpuset. This is how control plane pods are pinned.
+
+. Content of `99-workload-pinning.conf`
++
+[source,ini]
+----
+[crio.runtime.workloads.management]
+activation_annotation = "target.workload.openshift.io/management"
+annotation_prefix = "resources.workload.openshift.io"
+resources = { "cpushares" = 0, "cpuset" = "0-19" }
+----
+
+
+=== Verifying Core Isolation at the Kernel Level
+
+The final and most fundamental layer of verification is to inspect the kernel's boot parameters.
+
+. Run the command to see the kernel boot parameters:
++
+[source,bash]
+----
+cat /proc/cmdline
+----
+
+The output is a single line containing all boot parameters. Below is a snippet highlighting the most relevant ones for workload partitioning.
+
+. Example Kernel Boot Parameters
++
+[source,text]
+----
+BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-c97ac5f995c95de8117ca18e99d4fd82651d24967ea8f886514abf2d37f508cd/vmlinuz-5.14.0-427.81.1.el9_4.x86_64 ... isolcpus=managed_irq,20-23 ... rcu_nocbs=20-23 ... systemd.cpu_affinity=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 ...
+----
+
+The output reveals several key parameters that directly enable workload partitioning:
+
+- `isolcpus=managed_irq,20-23`: Instructs the Linux kernel scheduler to isolate cores 20-23.
+- `rcu_nocbs=20-23`: Offloads RCU (Read-Copy-Update) callbacks from the isolated cores to reduce kernel "noise".
+- `systemd.cpu_affinity=0-19`: Pins the `systemd` init process and its children to the reserved CPU set.
+
+== Node Status Comparison
+
+The effect of workload partitioning is clearly visible in the `oc describe node` output, specifically in the `Capacity` and `Allocatable` sections.
+
+=== After Workload Partitioning
+
+First, let's examine the node's status *after* workload partitioning has been applied.
+
+. Run the command to describe the node:
++
+[source,bash]
+----
+oc describe node master-01-demo
+----
+
+The output below shows that while the `Capacity` lists all 24 CPUs, the `Allocatable` CPU count is only 4. This starkly illustrates the 20 cores that have been reserved for the system.
+
+. Example Output (After Partitioning)
++
+[source,yaml]
+----
+...
+Capacity:
+  cpu:                24
+  memory:             30797848Ki
+  pods:               250
+Allocatable:
+  cpu:                4
+  memory:             29671448Ki
+  pods:               250
+...
+----
+
+=== Before Workload Partitioning
+
+For comparison, let's look at the status of a node *before* workload partitioning.
+
+. Run the command to describe the node:
++
+[source,bash]
+----
+oc describe node master-01-demo
+----
+
+Notice in this output that the `Allocatable` CPU is much higher (e.g., 23.5), as only a small fraction is reserved by default for system overhead.
+
+. Example Output (Before Partitioning)
++
+[source,yaml]
+----
+...
+Capacity:
+  cpu:                24
+  memory:             30797840Ki
+  pods:               250
+Allocatable:
+  cpu:                23500m
+  memory:             29646864Ki
+  pods:               250
+...
+----
+
+== Conclusion
+
+Workload partitioning is an essential feature for running OpenShift in resource-constrained environments. By creating a hard boundary between system and workload CPUs, it provides performance isolation, ensures control plane stability, and allows for more predictable application behavior.

@@ -1,0 +1,96 @@
+= 2. Enabling, Configuring, and Verifying
+
+Workload partitioning must be enabled during the initial cluster installation. This is done by adding the `cpuPartitioningMode` parameter to your `install-config.yaml` file.
+
+.install-config.yaml
+[source,yaml]
+----
+...
+cpuPartitioningMode: AllNodes
+...
+----
+
+After the cluster is installed with this setting, you can apply a `PerformanceProfile` to define the CPU allocation.
+
+== Applying the Performance Profile
+
+In this example, we have a single node cluster where each node has 24 CPU cores. For demonstration purposes, we will reserve the first 20 cores (0-19) for OpenShift system components and leave the remaining 4 cores (20-23) for user workloads.
+
+. Create the `PerformanceProfile` manifest:
++
+[source,bash]
+----
+# Note: Ensure $BASE_DIR is set to your working directory
+tee $BASE_DIR/data/install/performance-profile.yaml << 'EOF'
+---
+apiVersion: performance.openshift.io/v2
+kind: PerformanceProfile
+metadata:
+  name: openshift-node-performance-profile
+spec:
+  cpu:
+    # Cores reserved for user workloads
+    isolated: "20-23"
+    # Cores reserved for OpenShift system components and the OS
+    reserved: "0-19"
+  machineConfigPoolSelector:
+    pools.operator.machineconfiguration.openshift.io/master: ""
+  nodeSelector:
+    node-role.kubernetes.io/master: ''
+  numa:
+    # "restricted" policy enhances CPU affinity
+    topologyPolicy: "restricted"
+  realTimeKernel:
+    enabled: false
+  workloadHints:
+    realTime: false
+    highPowerConsumption: false
+    perPodPowerManagement: false
+EOF
+----
++
+. Apply the manifest:
++
+[source,bash]
+----
+oc apply -f $BASE_DIR/data/install/performance-profile.yaml
+----
+
+== Verifying System Component CPU Affinity
+
+Once the `PerformanceProfile` is applied and the nodes have rebooted, we can verify that critical system processes, like `etcd`, are correctly pinned to the reserved CPU cores.
+
+. Log in to a master node and run the following script:
++
+[source,bash]
+----
+# Find all PIDs for etcd processes
+ETCD_PIDS=$(ps -ef | grep "etcd " | grep -v grep | awk '{print $2}')
+
+# Iterate through each PID and check its CPU affinity
+for pid in $ETCD_PIDS; do
+    echo "----------------------------------------"
+    echo "Checking PID: ${pid}"
+
+    COMMAND=$(ps -o args= -p "$pid")
+    echo "Command: ${COMMAND}"
+
+    echo -n "CPU affinity (Cpuset): "
+    taskset -c -p "$pid"
+done
+----
+
+. The output should confirm that the `etcd` processes are running on the reserved cores (0-19).
++
+.Expected Output
+[source,text]
+----
+----------------------------------------
+Checking PID: 4332
+Command: etcd --logger=zap ...
+CPU affinity (Cpuset): pid 4332's current affinity list: 0-19
+----------------------------------------
+Checking PID: 4369
+Command: etcd grpc-proxy start ...
+CPU affinity (Cpuset): pid 4369's current affinity list: 0-19
+----
