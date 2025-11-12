@@ -4,7 +4,7 @@ Workload partitioning also applies to virtual machines managed by OpenShift Virt
 
 . *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
 +
-image::2025-09-02-23-37-09.png[width=1024]
+image::../assets/images/2025-09-02-23-37-09.png[width=1024]
 
 . *Access the VM and Run Stress Test:*
 +
