@@ -4,48 +4,112 @@ This section explores the mechanics of workload partitioning and summarizes the 
 
 == Behind the Scenes: How It Works
 
-The isolation is achieved through a combination of configurations at the Kubelet, CRI-O, and Kernel levels.
+The isolation is achieved through a combination of configurations at the Kubelet, CRI-O, and Kernel levels, managed by the Performance Addon Operator.
 
 === Kubelet Configuration
-The `PerformanceProfile` creates a `KubeletConfig` where the `reservedSystemCPUs` parameter instructs the Kubelet to reserve a specific set of cores for system daemons.
+
+The `PerformanceProfile` creates a `KubeletConfig` object. The key parameter here is `reservedSystemCPUs`.
+
+[source,bash]
+----
+oc get kubeletconfig performance-openshift-node-performance-profile -o yaml
+----
+
+[source,yaml]
+----
+# Snippet from KubeletConfig
+...
+spec:
+  kubeletConfig:
+    ...
+    cpuManagerPolicy: static
+    reservedSystemCPUs: 0-19
+    topologyManagerPolicy: restricted
+...
+----
+
+The `reservedSystemCPUs: 0-19` directive instructs the Kubelet to reserve cores 0-19 for the operating system and Kubernetes system daemons. The Kubelet's CPU Manager will only consider the remaining cores (20-23) as allocatable for pods.
 
 === CRI-O Configuration
-A CRI-O configuration file (`99-workload-pinning.conf`) is used to pin any pod with the `target.workload.openshift.io/management` annotation to the reserved cpuset.
 
-=== Kernel Level Isolation
-The most fundamental layer of isolation is at the Linux Kernel level, configured via boot parameters like `isolcpus`, `rcu_nocbs`, and `systemd.cpu_affinity`. These parameters ensure that the separation between system and workload resources is maintained right from the boot process.
+Additionally, a CRI-O configuration file is created to pin specific system-level workloads to the reserved cores. This ensures that even containers part of the OpenShift infrastructure are constrained to the reserved set.
+
+[source,bash]
+----
+# On a master node
+cat /etc/crio/crio.conf.d/99-workload-pinning.conf
+----
+
+[source,ini]
+----
+[crio.runtime.workloads.management]
+activation_annotation = "target.workload.openshift.io/management"
+annotation_prefix = "resources.workload.openshift.io"
+resources = { "cpushares" = 0, "cpuset" = "0-19" }
+----
+
+This configuration tells CRI-O that any pod with the `target.workload.openshift.io/management` annotation should be placed on the `0-19` cpuset. This is how control plane pods are pinned, ensuring they do not interfere with user workloads.
+
+
+=== Verifying Core Isolation at the Kernel Level
+
+The final and most fundamental layer of verification is to inspect the kernel's boot parameters.
+
+[source,bash]
+----
+cat /proc/cmdline
+----
+
+[source,text]
+----
+BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-c97ac5f995c95de8117ca18e99d4fd82651d24967ea8f886514abf2d37f508cd/vmlinuz-5.14.0-427.81.1.el9_4.x86_64 ... isolcpus=managed_irq,20-23 ... rcu_nocbs=20-23 ... systemd.cpu_affinity=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 ...
+----
+
+The output reveals several key parameters that directly enable workload partitioning:
+
+- `isolcpus=managed_irq,20-23`: Instructs the Linux kernel scheduler to isolate cores 20-23.
+- `rcu_nocbs=20-23`: Offloads RCU (Read-Copy-Update) callbacks from the isolated cores to reduce kernel "noise".
+- `systemd.cpu_affinity=0-19`: Pins the `systemd` init process and its children to the reserved CPU set.
 
 == Node Status Comparison
 
-The effect of workload partitioning is clearly visible in the `oc describe node` output.
+The effect of workload partitioning is clearly visible in the `oc describe node` output, specifically in the `Capacity` and `Allocatable` sections.
 
 === After Workload Partitioning
-While the `Capacity` shows the total number of CPUs, the `Allocatable` CPU count is significantly lower, reflecting the cores that were reserved for the system.
 
-. `oc describe node` (After)
+Notice that while the `Capacity` shows 24 total CPUs, the `Allocatable` CPU count is only 4. This reflects the 20 cores that were reserved for the system.
+
 [source,yaml]
 ----
+# oc describe node master-01-demo (After)
 ...
 Capacity:
   cpu:                24
-...
+  memory:             30797848Ki
+  pods:               250
 Allocatable:
   cpu:                4
+  memory:             29671448Ki
+  pods:               250
 ...
 ----
 
 === Before Workload Partitioning
-Without workload partitioning, the `Allocatable` CPU is nearly equal to the `Capacity`.
 
-. `oc describe node` (Before)
+Without workload partitioning, the `Allocatable` CPU is much higher (e.g., 23.5).
+
 [source,yaml]
 ----
+# oc describe node master-01-demo (Before)
 ...
 Capacity:
   cpu:                24
-...
+  memory:             30797840Ki
+  pods:               250
 Allocatable:
   cpu:                23500m
+  memory:             29646864Ki
+  pods:               250
 ...
 ----
 
