@@ -1,8 +1,8 @@
 ---
 site:
-  title: Showroom Template Demo
+  title: OpenShift Workload Partitioning Deep Dive
   url: https://redhat-scholars.github.io/course-template
-  start_page: modules::index.adoc
+  start_page: modules::wlp-01-intro.adoc
 
 content:
   sources:
