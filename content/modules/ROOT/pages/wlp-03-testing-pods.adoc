@@ -1,4 +1,4 @@
-= 4. Testing Workload Isolation with Pods
+= 3. Testing Workload Isolation with Pods
 
 Now that we've confirmed system components are pinned correctly, let's test how different Quality of Service (QoS) classes of pods behave under this configuration. We will deploy a CPU-intensive pod and observe its CPU usage.
 
@@ -6,7 +6,7 @@ Now that we've confirmed system components are pinned correctly, let's test how 
 
 A `BestEffort` pod is created when no resource requests or limits are specified. These pods are scheduled on the isolated (workload) CPUs.
 
-. Create the `BestEffort` pod deployment:
+. Create the `BestEffort` pod deployment manifest:
 +
 [source,bash]
 ----
@@ -44,15 +44,20 @@ spec:
               echo "Starting stress test on 4 CPUs...";
               stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
 EOF
-
-oc apply -f $BASE_DIR/data/install/pod-besteffort.yaml
 ----
-
-. Observe CPU usage on the host node. You will see that the `stress-ng` processes are consuming 100% of the CPU on the isolated cores (20, 21, 22, and 23).
++
+. Apply the manifest:
 +
 [source,bash]
 ----
-# top output snippet
+oc apply -f $BASE_DIR/data/install/pod-besteffort.yaml
+----
+
+. Observe CPU usage on the host node using `top`. You will see the isolated cores (20-23) at 100% utilization.
++
+.Example `top` output
+[source,text]
+----
 %Cpu19 :  2.0 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
 %Cpu20 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.3 si,  0.0 st
 %Cpu21 : 97.0 us,  1.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
@@ -60,24 +65,35 @@ oc apply -f $BASE_DIR/data/install/pod-besteffort.yaml
 %Cpu23 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
 ----
 
-. Confirm the process affinity using `taskset`. The output will show that the `stress-ng` process is bound to the isolated CPU core list (20-23).
+. Confirm the process affinity. First, find the PID of the `stress-ng` process:
 +
 [source,bash]
 ----
-# Find the parent process of the stress test
 ps -ef | grep "stress-ng"
-# .....
-# 1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
-# ... additional worker processes
-
-# Check the CPU affinity of the parent process
+----
++
+.Example `ps` output
+[source,text]
+----
+1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
+----
++
+. Now, check the CPU affinity of that process ID:
++
+[source,bash]
+----
 taskset -c -p 86399
-# pid 86399's current affinity list: 20-23
+----
++
+.Example `taskset` output
+[source,text]
+----
+pid 86399's current affinity list: 20-23
 ----
 
 == Test Case 2: Burstable Pod
 
-A `Burstable` pod has resource requests that are lower than its limits. These pods are also scheduled on the isolated CPUs. If you modify the deployment to have different requests and limits, the result is the same: the workload runs exclusively on the isolated cores (20-23).
+A `Burstable` pod has resource requests that are lower than its limits. These pods are also scheduled on the isolated CPUs.
 
 .Example `Burstable` resource definition:
 [source,yaml]
@@ -111,11 +127,17 @@ A `Guaranteed` pod has CPU requests equal to its CPU limits. The Kubernetes CPU 
 ...
 ----
 
-When this pod runs, it will be granted exclusive access to 3 cores from the isolated set (e.g., 20, 21, 22). The `taskset` output will confirm this exclusive assignment.
+When this pod runs, it will be granted exclusive access to 3 cores from the isolated set.
 
+. Check the CPU affinity:
++
 [source,bash]
 ----
-# Check the CPU affinity
 taskset -c -p <pid_of_stress-ng>
-# pid <pid_of_stress-ng>'s current affinity list: 20-22
+----
++
+.Example `taskset` output
+[source,text]
+----
+pid <pid_of_stress-ng>'s current affinity list: 20-22
 ----

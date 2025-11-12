@@ -16,8 +16,8 @@ After the cluster is installed with this setting, you can apply a `PerformancePr
 
 In this example, we have a single node cluster where each node has 24 CPU cores. For demonstration purposes, we will reserve the first 20 cores (0-19) for OpenShift system components and leave the remaining 4 cores (20-23) for user workloads.
 
-Create and apply the following `PerformanceProfile` manifest:
-
+. Create the `PerformanceProfile` manifest:
++
 [source,bash]
 ----
 # Note: Ensure $BASE_DIR is set to your working directory
@@ -47,7 +47,12 @@ spec:
     highPowerConsumption: false
     perPodPowerManagement: false
 EOF
-
+----
++
+. Apply the manifest:
++
+[source,bash]
+----
 oc apply -f $BASE_DIR/data/install/performance-profile.yaml
 ----
 
@@ -55,8 +60,8 @@ oc apply -f $BASE_DIR/data/install/performance-profile.yaml
 
 Once the `PerformanceProfile` is applied and the nodes have rebooted, we can verify that critical system processes, like `etcd`, are correctly pinned to the reserved CPU cores.
 
-First, log in to a master node. Then, use the following script to check the CPU affinity for all `etcd` processes:
-
+. Log in to a master node and run the following script:
++
 [source,bash]
 ----
 # Find all PIDs for etcd processes
@@ -75,8 +80,8 @@ for pid in $ETCD_PIDS; do
 done
 ----
 
-The output should confirm that the `etcd` processes are running on the reserved cores (0-19).
-
+. The output should confirm that the `etcd` processes are running on the reserved cores (0-19).
++
 .Expected Output
 [source,text]
 ----
