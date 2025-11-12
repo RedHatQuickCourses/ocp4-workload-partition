@@ -1,0 +1,54 @@
+= 5. Deep Dive and Conclusion
+
+This section explores the mechanics of workload partitioning and summarizes the key takeaways.
+
+== Behind the Scenes: How It Works
+
+The isolation is achieved through a combination of configurations at the Kubelet, CRI-O, and Kernel levels.
+
+=== Kubelet Configuration
+The `PerformanceProfile` creates a `KubeletConfig` where the `reservedSystemCPUs` parameter instructs the Kubelet to reserve a specific set of cores for system daemons.
+
+=== CRI-O Configuration
+A CRI-O configuration file (`99-workload-pinning.conf`) is used to pin any pod with the `target.workload.openshift.io/management` annotation to the reserved cpuset.
+
+=== Kernel Level Isolation
+The most fundamental layer of isolation is at the Linux Kernel level, configured via boot parameters like `isolcpus`, `rcu_nocbs`, and `systemd.cpu_affinity`. These parameters ensure that the separation between system and workload resources is maintained right from the boot process.
+
+== Node Status Comparison
+
+The effect of workload partitioning is clearly visible in the `oc describe node` output.
+
+=== After Workload Partitioning
+While the `Capacity` shows the total number of CPUs, the `Allocatable` CPU count is significantly lower, reflecting the cores that were reserved for the system.
+
+. `oc describe node` (After)
+[source,yaml]
+----
+...
+Capacity:
+  cpu:                24
+...
+Allocatable:
+  cpu:                4
+...
+----
+
+=== Before Workload Partitioning
+Without workload partitioning, the `Allocatable` CPU is nearly equal to the `Capacity`.
+
+. `oc describe node` (Before)
+[source,yaml]
+----
+...
+Capacity:
+  cpu:                24
+...
+Allocatable:
+  cpu:                23500m
+...
+----
+
+== Conclusion
+
+Workload partitioning is an essential feature for running OpenShift in resource-constrained environments. By creating a hard boundary between system and workload CPUs, it provides performance isolation, ensures control plane stability, and allows for more predictable application behavior.

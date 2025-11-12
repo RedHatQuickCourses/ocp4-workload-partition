@@ -1,0 +1,12 @@
+{
+  "name": "ocp4-workload-partition-tutorial",
+  "version": "1.0.0",
+  "description": "Antora site for the tutorial",
+  "scripts": {
+    "build": "antora default-site.yml"
+  },
+  "devDependencies": {
+    "@antora/cli": "^3.1.7",
+    "@antora/site-generator": "^3.1.7"
+  }
+}

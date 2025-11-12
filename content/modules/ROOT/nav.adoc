@@ -1,7 +1,5 @@
-* xref:module-01.adoc[1. RPM Native Container]
-** xref:module-01.adoc#repositories[Repositories]
-** xref:module-01.adoc#software[Software]
-
-* xref:module-02.adoc[2. GitHub Sourced Container]
-** xref:module-02.adoc#prerequisites[Install Prerequisites]
-** xref:module-02.adoc#container[Enable Container]
+* xref:wlp-01-intro.adoc[1. Introduction]
+* xref:wlp-02-config-and-verify.adoc[2. Configuration and Verification]
+* xref:wlp-03-testing-pods.adoc[3. Testing with Pods]
+* xref:wlp-04-testing-vms.adoc[4. Testing with VMs]
+* xref:wlp-05-deep-dive.adoc[5. Deep Dive and Conclusion]
