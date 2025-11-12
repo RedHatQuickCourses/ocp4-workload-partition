@@ -1,4 +1,4 @@
-* xref:wlp-01-intro.adoc[1. Introduction]
+* xref:index.adoc[1. Introduction]
 * xref:wlp-02-config-and-verify.adoc[2. Configuration and Verification]
 * xref:wlp-03-testing-pods.adoc[3. Testing with Pods]
 * xref:wlp-04-testing-vms.adoc[4. Testing with VMs]
