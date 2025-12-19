@@ -12,16 +12,38 @@ cpuPartitioningMode: AllNodes
 
 After the cluster is installed with this setting, you can apply a `PerformanceProfile` to define the CPU allocation.
 
+In this workshop, this step is done during cluster provision, so you do not need to do by your self.
+
 == Applying the Performance Profile
 
-In this example, we have a single node cluster where each node has 24 CPU cores. For demonstration purposes, we will reserve the first 20 cores (0-19) for OpenShift system components and leave the remaining 4 cores (20-23) for user workloads.
+In this example, we have a single node cluster where each node has 15 CPU cores. For demonstration purposes, we will reserve the first 12 cores (0-12) for OpenShift system components and leave the remaining 4 cores (11-15) for user workloads.
+
+. login into the ocp node
++
+[source,bash]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+----
+
+. check the cpu core number on the ocp node
++
+[source,bash]
+----
+lscpu | grep -i numa
+----
++
+.The expected output should looks like:
+[source,text]
+----
+NUMA node(s):                         2
+NUMA node0 CPU(s):                    0-55,112-167
+----
 
 . Create the `PerformanceProfile` manifest:
 +
 [source,bash]
 ----
-# Note: Ensure $BASE_DIR is set to your working directory
-tee $BASE_DIR/data/install/performance-profile.yaml << 'EOF'
+tee $HOME/performance-profile.yaml << 'EOF'
 ---
 apiVersion: performance.openshift.io/v2
 kind: PerformanceProfile
@@ -30,9 +52,9 @@ metadata:
 spec:
   cpu:
     # Cores reserved for user workloads
-    isolated: "20-23"
+    isolated: "12-15"
     # Cores reserved for OpenShift system components and the OS
-    reserved: "0-19"
+    reserved: "0-12"
   machineConfigPoolSelector:
     pools.operator.machineconfiguration.openshift.io/master: ""
   nodeSelector:
@@ -53,14 +75,22 @@ EOF
 +
 [source,bash]
 ----
-oc apply -f $BASE_DIR/data/install/performance-profile.yaml
+oc apply -f $HOME/performance-profile.yaml
 ----
 
 == Verifying System Component CPU Affinity
 
-Once the `PerformanceProfile` is applied and the nodes have rebooted, we can verify that critical system processes, like `etcd`, are correctly pinned to the reserved CPU cores.
+Once the `PerformanceProfile` is applied and the nodes have rebooted, wait for the cluster come back, it will cost several mins, during this period, you will lost access to the cluster and this webconsole.
 
-. Log in to a master node and run the following script:
+After the cluster come back, we can verify that critical system processes, like `etcd`, are correctly pinned to the reserved CPU cores.
+
+. Log in to a master node 
++
+[source,bash]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+----
+. run the following script:
 +
 [source,bash]
 ----
@@ -80,7 +110,7 @@ for pid in $ETCD_PIDS; do
 done
 ----
 
-. The output should confirm that the `etcd` processes are running on the reserved cores (0-19).
+. The output should confirm that the `etcd` processes are running on the reserved cores (0-12).
 +
 .Expected Output
 [source,text]
@@ -88,9 +118,9 @@ done
 ----------------------------------------
 Checking PID: 4332
 Command: etcd --logger=zap ...
-CPU affinity (Cpuset): pid 4332's current affinity list: 0-19
+CPU affinity (Cpuset): pid 4332's current affinity list: 0-12
 ----------------------------------------
 Checking PID: 4369
 Command: etcd grpc-proxy start ...
-CPU affinity (Cpuset): pid 4369's current affinity list: 0-19
+CPU affinity (Cpuset): pid 4369's current affinity list: 0-12
 ----

@@ -12,7 +12,9 @@ If you don't have `virtctl` installed, download it first:
 +
 [source,bash]
 ----
-wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.apps.demo-01-rhsys.wzhlab.top/amd64/linux/virtctl.tar.gz
+# 获取域名
+DOMAIN=$(oc get ingress.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.${DOMAIN}/amd64/linux/virtctl.tar.gz
 tar zvxf virtctl.tar.gz
 mv virtctl ~/.local/bin/
 ----
