@@ -1,6 +1,6 @@
-= 2. Enabling, Configuring, and Verifying
+= 2. Enabling, Configuring, and Verifying Workload Partitioning
 
-Workload partitioning must be enabled during the initial cluster installation. This is done by adding the `cpuPartitioningMode` parameter to your `install-config.yaml` file.
+Workload partitioning must be enabled during the initial cluster installation by adding the `cpuPartitioningMode: AllNodes` parameter to your `install-config.yaml` file.
 
 .install-config.yaml
 [source,yaml]
@@ -10,33 +10,38 @@ cpuPartitioningMode: AllNodes
 ...
 ----
 
-After the cluster is installed with this setting, you can apply a `PerformanceProfile` to define the CPU allocation.
+After the cluster is installed with this setting, you can apply a `PerformanceProfile` to define the CPU allocation for different workloads.
 
-In this workshop, this step is done during cluster provision, so you do not need to do by your self.
+NOTE: In this workshop environment, this configuration is performed during cluster provisioning, so you do not need to do it yourself.
 
 == Applying the Performance Profile
 
-In this example, we have a single node cluster where each node has 15 CPU cores. For demonstration purposes, we will reserve the first 12 cores (0-12) for OpenShift system components and leave the remaining 4 cores (11-15) for user workloads.
+In this example, we have a control plane node with 16 CPU cores. We will partition the CPUs as follows:
 
-. login into the ocp node
+*   *Reserved CPUs*: The first 12 cores (0-11) are reserved for OpenShift system components and the operating system.
+*   *Isolated CPUs*: The remaining 4 cores (12-15) are isolated for running user workloads.
+
+This separation ensures that user workloads do not interfere with critical system processes.
+
+. Log in to the control plane node:
 +
 [source,bash]
 ----
 NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
 ----
 
-. check the cpu core number on the ocp node
+. Check the CPU and NUMA configuration on the node:
 +
 [source,bash]
 ----
 lscpu | grep -i numa
 ----
 +
-.The expected output should looks like:
+.Example Output (for a 16-core system):
 [source,text]
 ----
-NUMA node(s):                         2
-NUMA node0 CPU(s):                    0-55,112-167
+NUMA node(s):          1
+NUMA node0 CPU(s):     0-15
 ----
 
 . Create the `PerformanceProfile` manifest:
@@ -51,16 +56,16 @@ metadata:
   name: openshift-node-performance-profile
 spec:
   cpu:
-    # Cores reserved for user workloads
-    isolated: "12-15"
     # Cores reserved for OpenShift system components and the OS
-    reserved: "0-12"
+    reserved: "0-11"
+    # Cores isolated for user workloads
+    isolated: "12-15"
   machineConfigPoolSelector:
     pools.operator.machineconfiguration.openshift.io/master: ""
   nodeSelector:
     node-role.kubernetes.io/master: ''
   numa:
-    # "restricted" policy enhances CPU affinity
+    # The "restricted" policy enhances CPU affinity and memory locality
     topologyPolicy: "restricted"
   realTimeKernel:
     enabled: false
@@ -70,8 +75,8 @@ spec:
     perPodPowerManagement: false
 EOF
 ----
-+
-. Apply the manifest:
+
+. Apply the manifest to the cluster:
 +
 [source,bash]
 ----
@@ -80,17 +85,17 @@ oc apply -f $HOME/performance-profile.yaml
 
 == Verifying System Component CPU Affinity
 
-Once the `PerformanceProfile` is applied and the nodes have rebooted, wait for the cluster come back, it will cost several mins, during this period, you will lost access to the cluster and this webconsole.
+After the `PerformanceProfile` is applied, the control plane nodes will reboot to apply the kernel settings. This process can take several minutes. During this time, you may temporarily lose access to the cluster and the web console.
 
-After the cluster come back, we can verify that critical system processes, like `etcd`, are correctly pinned to the reserved CPU cores.
+Once the cluster is accessible again, you can verify that critical system processes, such as `etcd`, are correctly pinned to the reserved CPU cores.
 
-. Log in to a master node 
+. Log in to the control plane node:
 +
 [source,bash]
 ----
 NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
 ----
-. run the following script:
+. Run the following script to check the CPU affinity of `etcd` processes:
 +
 [source,bash]
 ----
@@ -110,7 +115,7 @@ for pid in $ETCD_PIDS; do
 done
 ----
 
-. The output should confirm that the `etcd` processes are running on the reserved cores (0-12).
+. The output should confirm that the `etcd` processes are running exclusively on the reserved cores (0-11).
 +
 .Expected Output
 [source,text]
@@ -118,9 +123,9 @@ done
 ----------------------------------------
 Checking PID: 4332
 Command: etcd --logger=zap ...
-CPU affinity (Cpuset): pid 4332's current affinity list: 0-12
+CPU affinity (Cpuset): pid 4332's current affinity list: 0-11
 ----------------------------------------
 Checking PID: 4369
 Command: etcd grpc-proxy start ...
-CPU affinity (Cpuset): pid 4369's current affinity list: 0-12
+CPU affinity (Cpuset): pid 4369's current affinity list: 0-11
 ----
