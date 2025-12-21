@@ -10,7 +10,7 @@ A `BestEffort` pod is created when no resource requests or limits are specified.
 +
 [source,bash]
 ----
-tee $BASE_DIR/data/install/pod-besteffort.yaml << 'EOF'
+tee $HOME/pod-besteffort.yaml << 'EOF'
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -32,7 +32,7 @@ spec:
           emptyDir: {}
       containers:
         - name: stress-ng-container
-          image: quay.io/wangzheng422/qimgs:rocky9-test-2025.04.30.v01
+          image: quay.io/wangzheng422/qimgs:centos9-test-2025.12.18.v01
           volumeMounts:
             - name: temp-space
               mountPath: "/tmp/stress-workdir"
@@ -50,19 +50,26 @@ EOF
 +
 [source,bash]
 ----
-oc apply -f $BASE_DIR/data/install/pod-besteffort.yaml
+oc apply -f $HOME/pod-besteffort.yaml
 ----
 
-. Observe CPU usage on the host node using `top`. You will see the isolated cores (20-23) at 100% utilization.
+. Login to the ocp node
++
+[source,bash]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+----
+
+. Observe CPU usage on the host node using `top`. You will see the isolated cores (12-15) at 100% utilization.
 +
 .Example `top` output
 [source,text]
 ----
-%Cpu19 :  2.0 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
-%Cpu20 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.3 si,  0.0 st
-%Cpu21 : 97.0 us,  1.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
-%Cpu22 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
-%Cpu23 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu11 :  2.0 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu12 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.3 si,  0.0 st
+%Cpu13 : 97.0 us,  1.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
+%Cpu14 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu15 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
 ----
 
 . Confirm the process affinity. First, find the PID of the `stress-ng` process:
@@ -88,56 +95,146 @@ taskset -c -p 86399
 .Example `taskset` output
 [source,text]
 ----
-pid 86399's current affinity list: 20-23
+pid 86399's current affinity list: 12-15
 ----
 
 == Test Case 2: Burstable Pod
 
 A `Burstable` pod has resource requests that are lower than its limits. These pods are also scheduled on the isolated CPUs.
 
-.Example `Burstable` resource definition:
-[source,yaml]
-----
-...
-          resources:
-            requests:
-              cpu: "1"
-              memory: "512Mi"
-            limits:
-              cpu: "4"
-              memory: "512Mi"
-...
-----
-
-== Test Case 3: Guaranteed Pod
-
-A `Guaranteed` pod has CPU requests equal to its CPU limits. The Kubernetes CPU Manager assigns exclusive CPUs to each container in a `Guaranteed` pod.
-
-.Example `Guaranteed` resource definition:
-[source,yaml]
-----
-...
-          resources:
-            requests:
-              cpu: "3"
-              memory: "512Mi"
-            limits:
-              cpu: "3"
-              memory: "512Mi"
-...
-----
-
-When this pod runs, it will be granted exclusive access to 3 cores from the isolated set.
-
-. Check the CPU affinity:
+. Update the deployment using `oc patch` to add resource requests and limits:
 +
 [source,bash]
 ----
-taskset -c -p <pid_of_stress-ng>
+oc patch deployment cpu-stress-deployment -n demo --patch '
+spec:
+  template:
+    spec:
+      containers:
+      - name: stress-ng-container
+        resources:
+          requests:
+            cpu: "1"
+            memory: "512Mi"
+          limits:
+            cpu: "4"
+            memory: "512Mi"
+'
+----
+
+. Login to the ocp node
++
+[source,bash]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+----
+
+. Observe CPU usage on the host node using `top`. You will see the isolated cores (12-15) at 100% utilization.
++
+.Example `top` output
+[source,text]
+----
+%Cpu11 :  2.0 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu12 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.3 si,  0.0 st
+%Cpu13 : 97.0 us,  1.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
+%Cpu14 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu15 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+----
+
+. Confirm the process affinity. First, find the PID of the `stress-ng` process:
++
+[source,bash]
+----
+ps -ef | grep "stress-ng"
+----
++
+.Example `ps` output
+[source,text]
+----
+1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
+----
++
+. Now, check the CPU affinity of that process ID:
++
+[source,bash]
+----
+taskset -c -p 86399
 ----
 +
 .Example `taskset` output
 [source,text]
 ----
-pid <pid_of_stress-ng>'s current affinity list: 20-22
+pid 86399's current affinity list: 12-15
 ----
+
+
+== Test Case 3: Guaranteed Pod
+
+A `Guaranteed` pod has CPU requests equal to its CPU limits. The Kubernetes CPU Manager assigns exclusive CPUs to each container in a `Guaranteed` pod.
+
+. Update the deployment using `oc patch` to set equal CPU requests and limits:
++
+[source,bash]
+----
+oc patch deployment cpu-stress-deployment -n demo --patch '
+spec:
+  template:
+    spec:
+      containers:
+      - name: stress-ng-container
+        resources:
+          requests:
+            cpu: "3"
+            memory: "512Mi"
+          limits:
+            cpu: "3"
+            memory: "512Mi"
+'
+----
+
+. Login to the ocp node
++
+[source,bash]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+----
+
+. Observe CPU usage on the host node using `top`. You will see the isolated cores (12-15) at 100% utilization.
++
+.Example `top` output
+[source,text]
+----
+%Cpu11 :  2.0 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu12 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.3 si,  0.0 st
+%Cpu13 : 97.0 us,  1.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  1.3 si,  0.0 st
+%Cpu14 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu15 : 99.3 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+----
+
+. Confirm the process affinity. First, find the PID of the `stress-ng` process:
++
+[source,bash]
+----
+ps -ef | grep "stress-ng"
+----
++
+.Example `ps` output
+[source,text]
+----
+1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
+----
++
+. Now, check the CPU affinity of that process ID:
++
+[source,bash]
+----
+taskset -c -p 86399
+----
++
+.Example `taskset` output
+[source,text]
+----
+pid 86399's current affinity list: 12-14
+----
+
+please note this time, it pins to 3 cpu cores.
