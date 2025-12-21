@@ -102,58 +102,24 @@ pid 86399's current affinity list: 12-15
 
 A `Burstable` pod has resource requests that are lower than its limits. These pods are also scheduled on the isolated CPUs.
 
-. Create the `Burstable` pod deployment manifest:
+. Update the deployment using `oc patch` to add resource requests and limits:
 +
 [source,bash]
 ----
-tee $HOME/pod-burstable.yaml << 'EOF'
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cpu-stress-deployment
-  namespace: demo
+oc patch deployment cpu-stress-deployment -n demo --patch '
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cpu-stress
   template:
-    metadata:
-      labels:
-        app: cpu-stress
     spec:
-      volumes:
-        - name: temp-space
-          emptyDir: {}
       containers:
-        - name: stress-ng-container
-          image: quay.io/wangzheng422/qimgs:centos9-test-2025.12.18.v01
-          volumeMounts:
-            - name: temp-space
-              mountPath: "/tmp/stress-workdir"
-          # No resources defined, resulting in a BestEffort QoS class
-          command:
-            - "/bin/bash"
-            - "-c"
-            - |
-              echo "Starting stress test on 4 CPUs...";
-              stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
-          resources:
-            requests:
-              cpu: "1"
-              memory: "512Mi"
-            limits:
-              cpu: "4"
-              memory: "512Mi"
-EOF
-----
-+
-. Apply the manifest:
-+
-[source,bash]
-----
-oc apply -f $HOME/pod-burstable.yaml
+      - name: stress-ng-container
+        resources:
+          requests:
+            cpu: "1"
+            memory: "512Mi"
+          limits:
+            cpu: "4"
+            memory: "512Mi"
+'
 ----
 
 . Login to the ocp node
@@ -206,59 +172,24 @@ pid 86399's current affinity list: 12-15
 
 A `Guaranteed` pod has CPU requests equal to its CPU limits. The Kubernetes CPU Manager assigns exclusive CPUs to each container in a `Guaranteed` pod.
 
-
-. Create the `Guaranteed` pod deployment manifest:
+. Update the deployment using `oc patch` to set equal CPU requests and limits:
 +
 [source,bash]
 ----
-tee $HOME/pod-guaranteed.yaml << 'EOF'
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cpu-stress-deployment
-  namespace: demo
+oc patch deployment cpu-stress-deployment -n demo --patch '
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cpu-stress
   template:
-    metadata:
-      labels:
-        app: cpu-stress
     spec:
-      volumes:
-        - name: temp-space
-          emptyDir: {}
       containers:
-        - name: stress-ng-container
-          image: quay.io/wangzheng422/qimgs:centos9-test-2025.12.18.v01
-          volumeMounts:
-            - name: temp-space
-              mountPath: "/tmp/stress-workdir"
-          # No resources defined, resulting in a BestEffort QoS class
-          command:
-            - "/bin/bash"
-            - "-c"
-            - |
-              echo "Starting stress test on 4 CPUs...";
-              stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
-          resources:
-            requests:
-              cpu: "3"
-              memory: "512Mi"
-            limits:
-              cpu: "3"
-              memory: "512Mi"
-EOF
-----
-+
-. Apply the manifest:
-+
-[source,bash]
-----
-oc apply -f $HOME/pod-guaranteed.yaml
+      - name: stress-ng-container
+        resources:
+          requests:
+            cpu: "3"
+            memory: "512Mi"
+          limits:
+            cpu: "3"
+            memory: "512Mi"
+'
 ----
 
 . Login to the ocp node
