@@ -28,7 +28,7 @@ spec:
   kubeletConfig:
     ...
     cpuManagerPolicy: static
-    reservedSystemCPUs: 0-19
+    reservedSystemCPUs: 0-7
     topologyManagerPolicy: restricted
 ...
 ----
@@ -53,7 +53,7 @@ The content of the file specifies that any pod with the `target.workload.openshi
 [crio.runtime.workloads.management]
 activation_annotation = "target.workload.openshift.io/management"
 annotation_prefix = "resources.workload.openshift.io"
-resources = { "cpushares" = 0, "cpuset" = "0-19" }
+resources = { "cpushares" = 0, "cpuset" = "0-7" }
 ----
 
 
@@ -74,14 +74,14 @@ The output is a single line containing all boot parameters. Below is a snippet h
 +
 [source,text]
 ----
-BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-c97ac5f995c95de8117ca18e99d4fd82651d24967ea8f886514abf2d37f508cd/vmlinuz-5.14.0-427.81.1.el9_4.x86_64 ... isolcpus=managed_irq,20-23 ... rcu_nocbs=20-23 ... systemd.cpu_affinity=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 ...
+BOOT_IMAGE=(hd0,gpt3)/boot/ostree/rhcos-03dc4c69b357bff5c3a6a9a8ea09a3b120e41dc9b3843635e307bb753b518d4e/vmlinuz-5.14.0-427.64.1.el9_4.x86_64 ignition.platform.id=metal ostree=/ostree/boot.0/rhcos/03dc4c69b357bff5c3a6a9a8ea09a3b120e41dc9b3843635e307bb753b518d4e/0 root=UUID=910678ff-f77e-4a7d-8d53-86f2ac47a823 rw rootflags=prjquota boot=UUID=24be4633-f9c4-4ae6-b4cb-843c099c1f0b skew_tick=1 tsc=reliable rcupdate.rcu_normal_after_boot=1 nohz=on rcu_nocbs=8-15 tuned.non_isolcpus=000000ff systemd.cpu_affinity=0,1,2,3,4,5,6,7 iommu=pt amd_pstate=guided isolcpus=managed_irq,8-15 systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all psi=0
 ----
 
 The output reveals several key parameters that directly enable workload partitioning:
 
-- `isolcpus=managed_irq,20-23`: Instructs the Linux kernel scheduler to isolate cores 20-23.
-- `rcu_nocbs=20-23`: Offloads RCU (Read-Copy-Update) callbacks from the isolated cores to reduce kernel "noise".
-- `systemd.cpu_affinity=0-19`: Pins the `systemd` init process and its children to the reserved CPU set.
+- `isolcpus=managed_irq,8-15`: Instructs the Linux kernel scheduler to isolate cores 20-23.
+- `rcu_nocbs=8-15`: Offloads RCU (Read-Copy-Update) callbacks from the isolated cores to reduce kernel "noise".
+- `systemd.cpu_affinity=0,1,2,3,4,5,6,7`: Pins the `systemd` init process and its children to the reserved CPU set.
 
 == Node Status Comparison
 

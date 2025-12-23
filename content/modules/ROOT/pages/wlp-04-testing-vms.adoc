@@ -20,8 +20,6 @@ mv virtctl ~/.local/bin/
 ====
 First, let's create an SSH key pair. We will inject the public key into the VM using `cloud-init`. This will allow us to SSH into the VM without a password.
 ====
-+
-image::2025-09-02-23-37-09.png[width=1024]
 
 +
 [source,bash,role=execute]
@@ -114,8 +112,21 @@ Once inside the VM, run the stress test:
 ----
 dnf instsall -y /usr/bin/stress-ng
 
-stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp
+nohug stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp 2>&1 > /dev/null
+
+exit
 ----
+
+
+. Log in to the control plane node:
++
+[source,bash,role=execute]
+----
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
+
+oc debug node/$NODE_NAME
+----
+
 
 . *Observe Host CPU Usage:*
 +
