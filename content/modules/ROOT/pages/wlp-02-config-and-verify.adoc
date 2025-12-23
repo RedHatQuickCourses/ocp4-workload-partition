@@ -133,11 +133,11 @@ done
 ----------------------------------------
 Checking PID: 4332
 Command: etcd --logger=zap ...
-CPU affinity (Cpuset): pid 4332's current affinity list: 0-11
+CPU affinity (Cpuset): pid 4332's current affinity list: 0-7
 ----------------------------------------
 Checking PID: 4369
 Command: etcd grpc-proxy start ...
-CPU affinity (Cpuset): pid 4369's current affinity list: 0-11
+CPU affinity (Cpuset): pid 4369's current affinity list: 0-7
 ----
 
 . Go back to bastion node

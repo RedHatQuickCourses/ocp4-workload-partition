@@ -172,6 +172,7 @@ oc scale deployment cpu-stress-deployment --replicas=1
 [source,bash,role=execute]
 ----
 POD_NAME=$(oc get pods -n demo -l app=cpu-stress -o jsonpath='{.items[0].metadata.name}')
+
 oc rsh -n demo $POD_NAME
 ----
 
@@ -269,6 +270,7 @@ oc scale deployment cpu-stress-deployment --replicas=1
 [source,bash,role=execute]
 ----
 POD_NAME=$(oc get pods -n demo -l app=cpu-stress -o jsonpath='{.items[0].metadata.name}')
+
 oc rsh -n demo $POD_NAME
 ----
 
