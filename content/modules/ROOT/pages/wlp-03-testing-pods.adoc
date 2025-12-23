@@ -8,7 +8,7 @@ A `BestEffort` pod is created when no resource requests or limits are specified.
 
 . Create the `BestEffort` pod deployment manifest:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 tee $HOME/pod-besteffort.yaml << 'EOF'
 ---
@@ -48,14 +48,14 @@ EOF
 +
 . Apply the manifest:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 oc apply -f $HOME/pod-besteffort.yaml
 ----
 
 . Login to the ocp node
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
 ----
@@ -74,7 +74,7 @@ NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug no
 
 . Confirm the process affinity. First, find the PID of the `stress-ng` process:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 ps -ef | grep "stress-ng"
 ----
@@ -85,11 +85,11 @@ ps -ef | grep "stress-ng"
 1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
 ----
 +
-. Now, check the CPU affinity of that process ID:
+. Now, check the CPU affinity of that process ID automatically:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-taskset -c -p 86399
+taskset -c -p $(pgrep -o stress-ng)
 ----
 +
 .Example `taskset` output
@@ -124,9 +124,11 @@ spec:
 
 . Login to the ocp node
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
+
+oc debug node/$NODE_NAME
 ----
 
 . Observe CPU usage on the host node using `top`. You will see the isolated cores (12-15) at 100% utilization.
@@ -143,7 +145,7 @@ NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug no
 
 . Confirm the process affinity. First, find the PID of the `stress-ng` process:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 ps -ef | grep "stress-ng"
 ----
@@ -154,11 +156,11 @@ ps -ef | grep "stress-ng"
 1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
 ----
 +
-. Now, check the CPU affinity of that process ID:
+. Now, check the CPU affinity of that process ID automatically:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-taskset -c -p 86399
+taskset -c -p $(pgrep -o stress-ng)
 ----
 +
 .Example `taskset` output
@@ -174,7 +176,7 @@ A `Guaranteed` pod has CPU requests equal to its CPU limits. The Kubernetes CPU 
 
 . Update the deployment using `oc patch` to set equal CPU requests and limits:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 oc patch deployment cpu-stress-deployment -n demo --patch '
 spec:
@@ -194,9 +196,11 @@ spec:
 
 . Login to the ocp node
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
+
+oc debug node/$NODE_NAME
 ----
 
 . Observe CPU usage on the host node using `top`. You will see the isolated cores (12-15) at 100% utilization.
@@ -213,7 +217,7 @@ NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug no
 
 . Confirm the process affinity. First, find the PID of the `stress-ng` process:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 ps -ef | grep "stress-ng"
 ----
@@ -224,11 +228,11 @@ ps -ef | grep "stress-ng"
 1000740+   86399   86397  0 10:57 ?        00:00:00 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp/stress-workdir
 ----
 +
-. Now, check the CPU affinity of that process ID:
+. Now, check the CPU affinity of that process ID automatically:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-taskset -c -p 86399
+taskset -c -p $(pgrep -o stress-ng)
 ----
 +
 .Example `taskset` output

@@ -25,14 +25,16 @@ This separation ensures that user workloads do not interfere with critical syste
 
 . Log in to the control plane node:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
+
+oc debug node/$NODE_NAME
 ----
 
 . Check the CPU and NUMA configuration on the node:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 lscpu | grep -i numa
 ----
@@ -43,10 +45,15 @@ lscpu | grep -i numa
 NUMA node(s):          1
 NUMA node0 CPU(s):     0-15
 ----
-
+. go back to bastion node
++
+[source,bash,role-execute]
+----
+exit
+----
 . Create the `PerformanceProfile` manifest:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 tee $HOME/performance-profile.yaml << 'EOF'
 ---
@@ -78,7 +85,7 @@ EOF
 
 . Apply the manifest to the cluster:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 oc apply -f $HOME/performance-profile.yaml
 ----
@@ -91,13 +98,15 @@ Once the cluster is accessible again, you can verify that critical system proces
 
 . Log in to the control plane node:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') && oc debug node/$NODE_NAME
+NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}') 
+
+oc debug node/$NODE_NAME
 ----
 . Run the following script to check the CPU affinity of `etcd` processes:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 # Find all PIDs for etcd processes
 ETCD_PIDS=$(ps -ef | grep "etcd " | grep -v grep | awk '{print $2}')

@@ -10,7 +10,7 @@ image::2025-09-02-23-37-09.png[width=1024]
 +
 If you don't have `virtctl` installed, download it first:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 DOMAIN=$(oc get ingress.config.openshift.io cluster -o jsonpath='{.spec.domain}')
 wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.${DOMAIN}/amd64/linux/virtctl.tar.gz
@@ -20,14 +20,14 @@ mv virtctl ~/.local/bin/
 +
 Use `virtctl` to SSH into the VM and execute the `stress-ng` command.
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 virtctl -n demo ssh user@vm-name --identity-file=~/.ssh/id_rsa
 ----
 +
 Once inside the VM, run the stress test:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp
 ----
@@ -52,7 +52,7 @@ Finally, we can confirm the CPU affinity of the VM's QEMU process on the host no
 +
 . Find the PID of the `qemu-kvm` process for the VM:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 ps -ef | grep qemu-kvm
 ----
@@ -65,9 +65,9 @@ ps -ef | grep qemu-kvm
 +
 . Check its CPU affinity:
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-taskset -c -p 44891
+taskset -c -p $(pgrep -o qemu-kvm)
 ----
 +
 .Example `taskset` output
