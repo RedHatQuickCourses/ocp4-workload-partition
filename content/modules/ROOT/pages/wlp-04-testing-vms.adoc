@@ -2,10 +2,6 @@
 
 Workload partitioning also applies to virtual machines managed by OpenShift Virtualization. Let's create a VM with 4 vCPUs and run the same stress test to verify this.
 
-. *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
-+
-image::2025-09-02-23-37-09.png[width=1024]
-
 . *Access the VM and Run Stress Test:*
 +
 If you don't have `virtctl` installed, download it first:
@@ -17,6 +13,83 @@ wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshif
 tar zvxf virtctl.tar.gz
 mv virtctl ~/.local/bin/
 ----
+
+. *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
++
+image::2025-09-02-23-37-09.png[width=1024]
+
++
+[source,bash,role=execute]
+----
+tee  student-vm-ssh.yaml << EOF
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: centos9-clone
+  labels:
+    app: centos9-clone
+spec:
+  runStrategy: Manual
+  dataVolumeTemplates:
+    - metadata:
+        name: centos-clone-dv
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: centos-stream9
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: 30Gi
+          storageClassName: ocs-external-storagecluster-ceph-rbd
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: centos9-clone
+    spec:
+      domain:
+        cpu:
+          cores: 4
+          sockets: 1
+          threads: 1
+        resources:
+          requests:
+            memory: 2Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          dataVolume:
+            name: centos-clone-dv
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: root
+              password: redhat
+              chpasswd: { expire: False }
+              ssh_pwauth: True
+              disable_root: False
+EOF
+
+oc apply -f student-vm-ssh.yaml
+
+virtctl start centos9-student
+----
+
 +
 Use `virtctl` to SSH into the VM and execute the `stress-ng` command.
 +
