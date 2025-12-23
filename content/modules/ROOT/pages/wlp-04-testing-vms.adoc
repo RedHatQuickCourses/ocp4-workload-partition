@@ -16,12 +16,20 @@ mv virtctl ~/.local/bin/
 
 . *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
 +
+[NOTE]
+====
+First, let's create an SSH key pair. We will inject the public key into the VM using `cloud-init`. This will allow us to SSH into the VM without a password.
+====
++
 image::2025-09-02-23-37-09.png[width=1024]
 
 +
 [source,bash,role=execute]
 ----
-tee  student-vm-ssh.yaml << EOF
+ssh-keygen -t rsa -f ~/.ssh/wlp_id_rsa -N ""
+WLP_SSH_KEY=$(cat ~/.ssh/wlp_id_rsa.pub)
+
+tee student-vm-ssh.yaml << EOF
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
 metadata:
@@ -83,11 +91,13 @@ spec:
               chpasswd: { expire: False }
               ssh_pwauth: True
               disable_root: False
+              ssh_authorized_keys:
+                - ${WLP_SSH_KEY}
 EOF
 
 oc apply -f student-vm-ssh.yaml
 
-virtctl start centos9-student
+virtctl start centos9-clone
 ----
 
 +
@@ -95,7 +105,7 @@ Use `virtctl` to SSH into the VM and execute the `stress-ng` command.
 +
 [source,bash,role=execute]
 ----
-virtctl -n demo ssh user@vm-name --identity-file=~/.ssh/id_rsa
+virtctl ssh root@centos9-clone --identity-file=~/.ssh/wlp_id_rsa
 ----
 +
 Once inside the VM, run the stress test:
