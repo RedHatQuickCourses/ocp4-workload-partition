@@ -170,13 +170,27 @@ Notice in this output that the `Allocatable` CPU is much higher (e.g., 23.5), as
 ----
 ...
 Capacity:
-  cpu:                24
-  memory:             30797840Ki
-  pods:               250
+  cpu:                                     32
+  devices.kubevirt.io/kvm:                 1k
+  devices.kubevirt.io/tun:                 1k
+  devices.kubevirt.io/vhost-net:           1k
+  ephemeral-storage:                       104266732Ki
+  hugepages-1Gi:                           0
+  hugepages-2Mi:                           0
+  management.workload.openshift.io/cores:  32k
+  memory:                                  65814124Ki
+  pods:                                    250
 Allocatable:
-  cpu:                23500m
-  memory:             29646864Ki
-  pods:               250
+  cpu:                                     31500m
+  devices.kubevirt.io/kvm:                 1k
+  devices.kubevirt.io/tun:                 1k
+  devices.kubevirt.io/vhost-net:           1k
+  ephemeral-storage:                       95018478229
+  hugepages-1Gi:                           0
+  hugepages-2Mi:                           0
+  management.workload.openshift.io/cores:  32k
+  memory:                                  64663148Ki
+  pods:                                    250
 ...
 ----
 
