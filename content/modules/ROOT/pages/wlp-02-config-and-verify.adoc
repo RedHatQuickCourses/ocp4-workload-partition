@@ -16,12 +16,14 @@ NOTE: In this workshop environment, this configuration is performed during clust
 
 == Applying the Performance Profile
 
-In this example, we have a control plane node with 16 CPU cores. We will partition the CPUs as follows:
+In this example, we have a control plane node with 32 CPU cores. We will partition the CPUs as follows:
 
-*   *Reserved CPUs*: The first 12 cores (0-11) are reserved for OpenShift system components and the operating system.
-*   *Isolated CPUs*: The remaining 4 cores (12-15) are isolated for running user workloads.
+*   *Reserved CPUs*: The first 16 cores (0-15) are reserved for OpenShift system components and the operating system.
+*   *Isolated CPUs*: The remaining 16 cores (16-31) are isolated for running user workloads.
 
 This separation ensures that user workloads do not interfere with critical system processes.
+
+Plesae note: this configuration is for demo purpose only, in production system, normally you reserve first 4-8 cpu cores for ocp system components and os, and all cpu core left are isolated for workload.
 
 . Log in to the control plane node:
 +
@@ -43,7 +45,7 @@ lscpu | grep -i numa
 [source,text]
 ----
 NUMA node(s):          1
-NUMA node0 CPU(s):     0-15
+NUMA node0 CPU(s):     0-31
 ----
 
 . Go back to bastion node
@@ -65,9 +67,9 @@ metadata:
 spec:
   cpu:
     # Cores reserved for OpenShift system components and the OS
-    reserved: "0-7"
+    reserved: "0-15"
     # Cores isolated for user workloads
-    isolated: "8-15"
+    isolated: "16-31"
   machineConfigPoolSelector:
     pools.operator.machineconfiguration.openshift.io/master: ""
   nodeSelector:
@@ -91,9 +93,9 @@ EOF
 oc apply -f $HOME/performance-profile.yaml
 ----
 
-== Verifying System Component CPU Affinity
+Note: After the `PerformanceProfile` is applied, the control plane nodes will reboot to apply the kernel settings. This process can take several minutes. During this time, you may temporarily lose access to the cluster and the web console.
 
-After the `PerformanceProfile` is applied, the control plane nodes will reboot to apply the kernel settings. This process can take several minutes. During this time, you may temporarily lose access to the cluster and the web console.
+== Verifying System Component CPU Affinity
 
 Once the cluster is accessible again, you can verify that critical system processes, such as `etcd`, are correctly pinned to the reserved CPU cores.
 
@@ -133,11 +135,11 @@ done
 ----------------------------------------
 Checking PID: 4332
 Command: etcd --logger=zap ...
-CPU affinity (Cpuset): pid 4332's current affinity list: 0-7
+CPU affinity (Cpuset): pid 4332's current affinity list: 0-15
 ----------------------------------------
 Checking PID: 4369
 Command: etcd grpc-proxy start ...
-CPU affinity (Cpuset): pid 4369's current affinity list: 0-7
+CPU affinity (Cpuset): pid 4369's current affinity list: 0-15
 ----
 
 . Go back to bastion node

@@ -11,6 +11,7 @@ If you don't have `virtctl` installed, download it first:
 DOMAIN=$(oc get ingress.config.openshift.io cluster -o jsonpath='{.spec.domain}')
 wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.${DOMAIN}/amd64/linux/virtctl.tar.gz
 tar zvxf virtctl.tar.gz
+mkdir -p ~/.local/bin/
 mv virtctl ~/.local/bin/
 ----
 
@@ -60,8 +61,13 @@ spec:
           sockets: 1
           threads: 1
         resources:
+          # 2. Kubernetes 容器层面的资源锁定 (Resource Constraints)
           requests:
             memory: 2Gi
+            cpu: 4        # 确保调度器预留 4 个核
+          limits:
+            memory: 2Gi   # 建议内存也做限制，防止被 OOM Kill
+            cpu: 4        # 【关键】硬限制，超过 4 核的算力会被宿主机截断 (Throttled)
         devices:
           disks:
             - name: rootdisk
@@ -110,9 +116,9 @@ Once inside the VM, run the stress test:
 +
 [source,bash,role=execute]
 ----
-dnf instsall -y /usr/bin/stress-ng
+dnf install -y /usr/bin/stress-ng
 
-nohug stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp 2>&1 > /dev/null
+nohup stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp &
 
 exit
 ----
@@ -135,11 +141,38 @@ Checking `top` on the host node will again show that the QEMU process for the VM
 .Example `top` output
 [source,text]
 ----
-%Cpu19 :  1.7 us,  2.0 sy,  0.0 ni, 96.4 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
-%Cpu20 : 99.0 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.7 hi,  0.0 si,  0.0 st
-%Cpu21 : 96.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  1.0 hi,  2.0 si,  0.0 st
-%Cpu22 : 98.7 us,  0.3 sy,  0.0 ni,  0.0 id,  0.0 wa,  1.0 hi,  0.0 si,  0.0 st
-%Cpu23 : 99.0 us,  0.7 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu0  :  8.1 us,  3.4 sy,  0.0 ni, 81.8 id,  0.3 wa,  1.7 hi,  4.7 si,  0.0 st
+%Cpu1  :  7.8 us,  4.7 sy,  0.0 ni, 84.1 id,  0.0 wa,  1.4 hi,  2.0 si,  0.0 st
+%Cpu2  :  7.7 us,  3.0 sy,  0.0 ni, 86.9 id,  0.3 wa,  1.3 hi,  0.7 si,  0.0 st
+%Cpu3  :  9.4 us,  3.7 sy,  0.0 ni, 84.5 id,  0.0 wa,  1.7 hi,  0.7 si,  0.0 st
+%Cpu4  :  7.4 us,  3.4 sy,  0.0 ni, 87.2 id,  0.0 wa,  1.3 hi,  0.7 si,  0.0 st
+%Cpu5  :  7.0 us,  2.7 sy,  0.0 ni, 88.3 id,  0.0 wa,  1.3 hi,  0.3 si,  0.3 st
+%Cpu6  :  6.4 us,  3.4 sy,  0.0 ni, 87.9 id,  0.3 wa,  1.7 hi,  0.3 si,  0.0 st
+%Cpu7  :  7.4 us,  3.7 sy,  0.0 ni, 86.9 id,  0.0 wa,  1.7 hi,  0.3 si,  0.0 st
+%Cpu8  :  6.7 us,  2.7 sy,  0.0 ni, 88.2 id,  0.0 wa,  1.7 hi,  0.7 si,  0.0 st
+%Cpu9  :  7.7 us,  4.0 sy,  0.0 ni, 86.2 id,  0.3 wa,  1.3 hi,  0.3 si,  0.0 st
+%Cpu10 :  7.1 us,  4.0 sy,  0.0 ni, 87.2 id,  0.0 wa,  1.3 hi,  0.3 si,  0.0 st
+%Cpu11 :  8.7 us,  4.0 sy,  0.0 ni, 85.7 id,  0.0 wa,  1.3 hi,  0.3 si,  0.0 st
+%Cpu12 :  9.6 us,  4.3 sy,  0.0 ni, 84.1 id,  0.0 wa,  1.7 hi,  0.3 si,  0.0 st
+%Cpu13 :  8.7 us,  3.0 sy,  0.0 ni, 86.0 id,  0.3 wa,  1.3 hi,  0.7 si,  0.0 st
+%Cpu14 :  8.7 us,  3.0 sy,  0.0 ni, 86.0 id,  0.0 wa,  1.7 hi,  0.7 si,  0.0 st
+%Cpu15 :  6.7 us,  4.0 sy,  0.0 ni, 87.6 id,  0.0 wa,  1.3 hi,  0.3 si,  0.0 st
+%Cpu16 : 99.7 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu17 : 99.7 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu18 : 99.7 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu19 : 99.7 us,  0.0 sy,  0.0 ni,  0.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu20 :  0.7 us,  0.7 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu21 :  2.3 us,  1.6 sy,  0.0 ni, 95.4 id,  0.0 wa,  0.3 hi,  0.3 si,  0.0 st
+%Cpu22 :  2.3 us,  1.3 sy,  0.0 ni, 96.3 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu23 :  1.0 us,  0.3 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.0 hi,  0.3 si,  0.0 st
+%Cpu24 :  9.9 us,  1.3 sy,  0.0 ni, 88.4 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu25 :  0.3 us,  1.0 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu26 :  1.0 us,  0.7 sy,  0.0 ni, 98.3 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu27 :  0.7 us,  0.7 sy,  0.0 ni, 98.7 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu28 :  3.0 us,  0.7 sy,  0.0 ni, 96.4 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st
+%Cpu29 :  1.3 us,  0.7 sy,  0.0 ni, 97.4 id,  0.0 wa,  0.3 hi,  0.3 si,  0.0 st
+%Cpu30 :  2.0 us,  0.7 sy,  0.0 ni, 97.0 id,  0.0 wa,  0.3 hi,  0.0 si,  0.0 st
+%Cpu31 :  1.3 us,  0.7 sy,  0.0 ni, 97.4 id,  0.0 wa,  0.3 hi,  0.3 si,  0.0 st
 ----
 
 . *Verifying VM Process CPU Affinity*
@@ -156,7 +189,7 @@ ps -ef | grep qemu-kvm
 .Example `ps` output
 [source,text]
 ----
-107        44891   44699 62 03:04 ?        00:04:53 /usr/libexec/qemu-kvm -name guest=demo_centos-stream10-tan-tarantula-34,.............
+107      1216721 1216582 99 15:03 ?        00:05:49 /usr/libexec/qemu-kvm -name guest=demo_centos9-student,.............
 ----
 +
 . Check its CPU affinity:
@@ -169,5 +202,14 @@ taskset -c -p $(pgrep -o qemu-kvm)
 .Example `taskset` output
 [source,text]
 ----
-pid 44891's current affinity list: 20-23
+pid 1216721's current affinity list: 16-19
+----
+
+== cleanup
+
+. delete the demo deployment
++
+[source,bash,role-execute]
+----
+oc delete -f student-vm-ssh.yaml
 ----
