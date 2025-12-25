@@ -1,33 +1,42 @@
 = 4. Testing Workload Isolation with a Virtual Machine
 
-Workload partitioning also applies to virtual machines managed by OpenShift Virtualization. Let's create a VM with 4 vCPUs and run the same stress test to verify this.
+Workload partitioning is not limited to containerized applications; it also extends to virtual machines managed by **OpenShift Virtualization**. In this section, we will deploy a VirtualMachine (VM) with 4 vCPUs and verify that it respects the CPU isolation boundaries defined in our `PerformanceProfile`.
 
-. *Access the VM and Run Stress Test:*
-+
-If you don't have `virtctl` installed, download it first:
-+
+== Installing Command Line Tools
+
+If you haven't already installed the `virtctl` binary, which is essential for interacting with OpenShift VMs from the CLI, follow these steps:
+
 [source,bash,role=execute]
 ----
+# Get the cluster ingress domain
 DOMAIN=$(oc get ingress.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+
+# Download the virtctl binary from the internal cluster endpoint
 wget --no-check-certificate https://hyperconverged-cluster-cli-download-openshift-cnv.${DOMAIN}/amd64/linux/virtctl.tar.gz
+
+# Extract and install to a local bin directory
 tar zvxf virtctl.tar.gz
 mkdir -p ~/.local/bin/
 mv virtctl ~/.local/bin/
 ----
 
-. *Create a VM:* Use the OpenShift console or `virtctl` to create a virtual machine with 4 CPU cores in a project/namespace.
-+
-[NOTE]
-====
-First, let's create an SSH key pair. We will inject the public key into the VM using `cloud-init`. This will allow us to SSH into the VM without a password.
-====
+== Creating a Virtual Machine
 
+We will create a VM using a `DataVolume` for its root disk and use `cloud-init` to inject our SSH public key. This allows for passwordless access to the VM.
+
+. **Generate an SSH key pair:**
 +
 [source,bash,role=execute]
 ----
+# Create a dedicated SSH key for this lab
 ssh-keygen -t rsa -f ~/.ssh/wlp_id_rsa -N ""
 WLP_SSH_KEY=$(cat ~/.ssh/wlp_id_rsa.pub)
+----
 
+. **Define and create the VM manifest:**
++
+[source,bash,role=execute]
+----
 tee student-vm-ssh.yaml << EOF
 apiVersion: kubevirt.io/v1
 kind: VirtualMachine
@@ -61,13 +70,13 @@ spec:
           sockets: 1
           threads: 1
         resources:
-          # 2. Kubernetes 容器层面的资源锁定 (Resource Constraints)
+          # Resource constraints at the Kubernetes container level
           requests:
             memory: 2Gi
-            cpu: 4        # 确保调度器预留 4 个核
+            cpu: 4        # Ensure the scheduler reserves 4 physical cores
           limits:
-            memory: 2Gi   # 建议内存也做限制，防止被 OOM Kill
-            cpu: 4        # 【关键】硬限制，超过 4 核的算力会被宿主机截断 (Throttled)
+            memory: 2Gi   
+            cpu: 4        # Hard limit to prevent CPU bursting beyond the isolated set
         devices:
           disks:
             - name: rootdisk
@@ -99,44 +108,57 @@ spec:
                 - ${WLP_SSH_KEY}
 EOF
 
+# Apply the manifest and start the VM
 oc apply -f student-vm-ssh.yaml
-
 virtctl start centos9-student
 ----
 
-+
-Use `virtctl` to SSH into the VM and execute the `stress-ng` command.
+== Running the Stress Test Inside the VM
+
+Wait for the VM to boot, then SSH into it to run a CPU-intensive task.
+
+. **SSH into the VM:**
 +
 [source,bash,role=execute]
 ----
+# Use virtctl to securely SSH into the VM instance
 virtctl ssh root@centos9-student --identity-file=~/.ssh/wlp_id_rsa
 ----
+
+. **Install and run `stress-ng` inside the VM shell:**
 +
-Once inside the VM, run the stress test:
-+
-[source,bash,role=execute]
+[source,bash]
 ----
+# Install the stress-ng utility
 dnf install -y /usr/bin/stress-ng
 
+# Launch a background stress test on 4 CPUs at 100% load
 nohup stress-ng --cpu 4 --cpu-load 100 --temp-path /tmp &
 
+# Exit the VM shell
 exit
 ----
 
+== Verifying Host CPU Usage
 
-. Log in to the control plane node:
+Now, we will verify that the virtualization overhead and the VM's computational work are confined to the **Isolated** CPU set on the host node.
+
+. **Access the control plane node:**
 +
 [source,bash,role=execute]
 ----
 NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
-
 oc debug node/$NODE_NAME
 ----
 
-
-. *Observe Host CPU Usage:*
+. **Observe the `top` output on the host:**
 +
-Checking `top` on the host node will again show that the QEMU process for the VM is consuming CPU cycles exclusively from the isolated cores (20-23).
+[source,bash]
+----
+top
+----
++
+In the `top` output, you will see the QEMU process (which runs the VM) consuming 400% CPU (4 cores). Crucially, these cycles are being drawn from the **Isolated** set (cores 16-19).
 +
 .Example `top` output
 [source,text]
@@ -175,11 +197,11 @@ Checking `top` on the host node will again show that the QEMU process for the VM
 %Cpu31 :  1.3 us,  0.7 sy,  0.0 ni, 97.4 id,  0.0 wa,  0.3 hi,  0.3 si,  0.0 st
 ----
 
-. *Verifying VM Process CPU Affinity*
+. **Verify Process Affinity from the Host:**
 +
-Finally, we can confirm the CPU affinity of the VM's QEMU process on the host node.
+Find the process ID of the `qemu-kvm` instance and check its affinity.
 +
-. Find the PID of the `qemu-kvm` process for the VM:
+. Find the `qemu-kvm` process for the VM:
 +
 [source,bash,role=execute]
 ----
@@ -196,20 +218,26 @@ ps -ef | grep qemu-kvm
 +
 [source,bash,role=execute]
 ----
-taskset -c -p $(pgrep -o qemu-kvm)
+# Find the PID of the VM's QEMU process
+QEMU_PID=$(pgrep -o qemu-kvm)
+
+# Check the CPU affinity of the QEMU process
+taskset -c -p $QEMU_PID
 ----
 +
-.Example `taskset` output
+.Example Output
 [source,text]
 ----
 pid 1216721's current affinity list: 16-19
 ----
 
-== cleanup
+This confirms that the VM's compute resources are strictly pinned to the designated isolated cores, preventing any impact on the cluster's control plane.
 
-. delete the demo deployment
-+
-[source,bash,role-execute]
+== Cleanup
+
+To release the resources, delete the VM:
+
+[source,bash,role=execute]
 ----
 oc delete -f student-vm-ssh.yaml
 ----

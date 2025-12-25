@@ -1,8 +1,12 @@
 = 2. Enabling, Configuring, and Verifying Workload Partitioning
 
-Workload partitioning must be enabled during the initial cluster installation by adding the `cpuPartitioningMode: AllNodes` parameter to your `install-config.yaml` file.
+Workload partitioning is not just a configuration; it is a fundamental cluster mode that must be established at the very beginning of the cluster's lifecycle.
 
-.install-config.yaml
+== Enabling Workload Partitioning During Installation
+
+To enable this feature, you must add the `cpuPartitioningMode: AllNodes` parameter to your `install-config.yaml` file before deploying the cluster. This flag signals the installer and the operators that the cluster will operate in a partitioned mode.
+
+.Snippet of install-config.yaml
 [source,yaml]
 ----
 ...
@@ -10,51 +14,61 @@ cpuPartitioningMode: AllNodes
 ...
 ----
 
-After the cluster is installed with this setting, you can apply a `PerformanceProfile` to define the CPU allocation for different workloads.
+After the cluster is installed with this setting, the infrastructure is prepared for CPU pinning. You then use a `PerformanceProfile` to define the specific CPU sets for system and user workloads.
 
-NOTE: In this workshop environment, this configuration is performed during cluster provisioning, so you do not need to do it yourself.
+[NOTE]
+====
+In this workshop environment, the cluster was provisioned with `cpuPartitioningMode` enabled. You will focus on the post-installation configuration and verification.
+====
 
 == Applying the Performance Profile
 
-In this example, we have a control plane node with 32 CPU cores. We will partition the CPUs as follows:
+The `PerformanceProfile` is the primary mechanism for managing fine-grained hardware tuning in OpenShift. It is managed by the **Node Tuning Operator (NTO)**.
 
-*   *Reserved CPUs*: The first 16 cores (0-15) are reserved for OpenShift system components and the operating system.
-*   *Isolated CPUs*: The remaining 16 cores (16-31) are isolated for running user workloads.
+In this demonstration, we are using a node with **32 CPU cores** (0-31). We will partition the CPUs as follows:
 
-This separation ensures that user workloads do not interfere with critical system processes.
+*   **Reserved CPUs (0-15)**: Dedicated to the operating system (RHCOS) and critical OpenShift system components (e.g., Kubelet, CRI-O, etcd, etc.).
+*   **Isolated CPUs (16-31)**: Dedicated to user workloads. These cores are isolated from the kernel scheduler by default.
 
-Plesae note: this configuration is for demo purpose only, in production system, normally you reserve first 4-8 cpu cores for ocp system components and os, and all cpu core left are isolated for workload.
+[IMPORTANT]
+====
+This 50/50 split is for demonstration purposes to clearly show the isolation in `top`. In a production environment, you typically reserve a smaller set (e.g., 4-8 cores) for the system and allocate the rest for workloads.
+====
 
-. Log in to the control plane node:
+. **Log in to the control plane node:**
 +
 [source,bash,role=execute]
 ----
+# Get the first node name
 NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
 
+# Access the node via a debug pod
 oc debug node/$NODE_NAME
 ----
 
-. Check the CPU and NUMA configuration on the node:
+. **Inspect the node's CPU and NUMA topology:**
 +
 [source,bash,role=execute]
 ----
+# Display CPU architecture information
 lscpu | grep -i numa
 ----
 +
-.Example Output (for a 16-core system):
+.Example Output (for a 32-core system):
 [source,text]
 ----
 NUMA node(s):          1
 NUMA node0 CPU(s):     0-31
 ----
 
-. Go back to bastion node
+. **Exit the debug shell and return to the bastion host:**
 +
-[source,bash,role-execute]
+[source,bash,role=execute]
 ----
 exit
 ----
-. Create the `PerformanceProfile` manifest:
+
+. **Create the `PerformanceProfile` manifest:**
 +
 [source,bash,role=execute]
 ----
@@ -66,16 +80,16 @@ metadata:
   name: openshift-node-performance-profile
 spec:
   cpu:
-    # Cores reserved for OpenShift system components and the OS
+    # Set core 0-15 for OpenShift system components and the OS
     reserved: "0-15"
-    # Cores isolated for user workloads
+    # Set core 16-31 for user workloads
     isolated: "16-31"
   machineConfigPoolSelector:
     pools.operator.machineconfiguration.openshift.io/master: ""
   nodeSelector:
     node-role.kubernetes.io/master: ''
   numa:
-    # The "restricted" policy enhances CPU affinity and memory locality
+    # "restricted" policy ensures containers are pinned to the same NUMA node for memory and CPU
     topologyPolicy: "restricted"
   realTimeKernel:
     enabled: false
@@ -86,20 +100,23 @@ spec:
 EOF
 ----
 
-. Apply the manifest to the cluster:
+. **Apply the manifest to the cluster:**
 +
 [source,bash,role=execute]
 ----
 oc apply -f $HOME/performance-profile.yaml
 ----
 
-Note: After the `PerformanceProfile` is applied, the control plane nodes will reboot to apply the kernel settings. This process can take several minutes. During this time, you may temporarily lose access to the cluster and the web console.
+[NOTE]
+====
+Applying a `PerformanceProfile` triggers a **MachineConfig** update. The affected nodes will undergo a rolling reboot to apply kernel arguments (like `isolcpus`). This process may take several minutes.
+====
 
 == Verifying System Component CPU Affinity
 
-Once the cluster is accessible again, you can verify that critical system processes, such as `etcd`, are correctly pinned to the reserved CPU cores.
+Once the nodes have rebooted and the cluster is stable, we can verify that the system components are correctly constrained to the **Reserved** CPU set (0-15). We will use `etcd` as our primary example.
 
-. Log in to the control plane node:
+. **Re-enter the control plane node:**
 +
 [source,bash,role=execute]
 ----
@@ -107,27 +124,32 @@ NODE_NAME=$(oc get nodes -o jsonpath='{.items[0].metadata.name}')
 
 oc debug node/$NODE_NAME
 ----
-. Run the following script to check the CPU affinity of `etcd` processes:
+
+. **Check the CPU affinity of `etcd` processes:**
 +
 [source,bash,role=execute]
 ----
-# Find all PIDs for etcd processes
+# Identify PIDs for etcd processes
 ETCD_PIDS=$(ps -ef | grep "etcd " | grep -v grep | awk '{print $2}')
 
-# Iterate through each PID and check its CPU affinity
+# Check the CPU affinity (cpuset) for each identified PID
 for pid in $ETCD_PIDS; do
     echo "----------------------------------------"
     echo "Checking PID: ${pid}"
 
+    # Get the command line of the process
     COMMAND=$(ps -o args= -p "$pid")
     echo "Command: ${COMMAND}"
 
+    # Use taskset to show the effective CPU affinity
     echo -n "CPU affinity (Cpuset): "
     taskset -c -p "$pid"
 done
 ----
 
-. The output should confirm that the `etcd` processes are running exclusively on the reserved cores (0-11).
+. **Analyze the output:**
++
+The output should confirm that the `etcd` processes are strictly running on the reserved cores (0-15).
 +
 .Expected Output
 [source,text]
@@ -142,9 +164,9 @@ Command: etcd grpc-proxy start ...
 CPU affinity (Cpuset): pid 4369's current affinity list: 0-15
 ----
 
-. Go back to bastion node
+. **Return to the bastion host:**
 +
-[source,bash,role-execute]
+[source,bash,role=execute]
 ----
 exit
 ----
