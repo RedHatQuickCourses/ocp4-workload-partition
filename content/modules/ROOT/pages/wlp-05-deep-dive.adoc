@@ -123,11 +123,13 @@ Capacity:
   management.workload.openshift.io/cores:  32k
   memory:                                  65814140Ki
   pods:                                    250
+  ...
 Allocatable:
   cpu:                                     16
   management.workload.openshift.io/cores:  32k
   memory:                                  64687740Ki
   pods:                                    250
+  ...
 ...
 ----
 
@@ -140,8 +142,10 @@ For comparison, a standard OpenShift node (without partitioning) would show an `
 ...
 Capacity:
   cpu:                                     32
+  ...
 Allocatable:
   cpu:                                     31500m
+  ...
 ...
 ----
 
