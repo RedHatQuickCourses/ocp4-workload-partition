@@ -73,7 +73,7 @@ oc rsh -n demo $POD_NAME
 
 . **Run `top` inside the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 # starting top to see individual CPU details
 top 1
@@ -161,7 +161,7 @@ The output should confirm that the Pod is restricted to the range **16-31**.
 
 . **Exit the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 exit
 ----
@@ -206,7 +206,7 @@ oc rsh -n demo $POD_NAME
 
 . **Run `top` inside the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 # starting top to see individual CPU details
 top 1
@@ -295,7 +295,7 @@ You will find the affinity list is still **16-31**. Burstable pods share the iso
 
 . **Exit the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 exit
 ----
@@ -342,7 +342,7 @@ oc rsh -n demo $POD_NAME
 
 . **Run `top` inside the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 # starting top to see individual CPU details
 top 1
@@ -430,7 +430,7 @@ Instead of the broad `16-31` range, you will see a specific set of 4 cores (e.g.
 
 . **Exit the Pod:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 exit
 ----
