@@ -127,7 +127,7 @@ virtctl ssh root@centos9-student --identity-file=~/.ssh/wlp_id_rsa
 
 . **Install and run `stress-ng` inside the VM shell:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
 # Install the stress-ng utility
 dnf install -y /usr/bin/stress-ng
@@ -153,9 +153,9 @@ oc debug node/$NODE_NAME
 
 . **Observe the `top` output on the host:**
 +
-[source,bash]
+[source,bash,role=execute]
 ----
-top
+top 1
 ----
 +
 In the `top` output, you will see the QEMU process (which runs the VM) consuming 400% CPU (4 cores). Crucially, these cycles are being drawn from the **Isolated** set (cores 16-19).

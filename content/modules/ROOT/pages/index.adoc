@@ -3,6 +3,7 @@
 In modern cloud-native architectures, especially at the edge, resource efficiency and system stability are paramount. **Workload Partitioning** is a sophisticated feature in OpenShift designed to provide strict CPU core isolation between critical OpenShift system components and user-deployed workloads. 
 
 This isolation is particularly critical in resource-constrained environments such as:
+
 *   **Single-Node OpenShift (SNO)**: Where the entire control plane and data plane reside on a single machine.
 *   **3-node Compact Clusters**: Where master and worker roles are co-located.
 *   **Edge Computing**: Where hardware resources are limited and predictable latency is required.
@@ -10,11 +11,13 @@ This isolation is particularly critical in resource-constrained environments suc
 In these scenarios, system services and user applications share the same physical host and compete for CPU resources. Without partitioning, a sudden spike in a user application's CPU usage could starve critical system processes like `etcd` or the `kubelet`, leading to cluster instability or even node failure.
 
 By dedicating specific CPU cores to the system (Reserved) and others to workloads (Isolated), you can:
+
 *   **Achieve Predictable Performance**: Ensure user applications have guaranteed access to their assigned cores.
 *   **Ensure Cluster Stability**: Protect the control plane from being impacted by user workloads.
 *   **Minimize "Noisy Neighbor" Effects**: Prevent inter-process interference at the hardware level.
 
 This lab provides a comprehensive, step-by-step demonstration of how to enable, configure, and verify workload partitioning. Throughout the session, we will:
+
 1.  Apply a `PerformanceProfile` to define CPU sets.
 2.  Deploy and analyze various Pod types (BestEffort, Burstable, Guaranteed) to see how they are pinned.
 3.  Deploy a Virtual Machine using OpenShift Virtualization to verify that virtualization workloads also respect the partitioning rules.
